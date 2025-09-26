@@ -21,7 +21,9 @@ router.post("/auth/signup", async (req, res) => {
 
   console.log("new user", newUser);
 
-  res.send({ user: newUser });
+  res.send({ id:newUser._id,
+             email:newUser.email
+   });
 });
 
 router.post("/auth/signin", async (req, res) => {

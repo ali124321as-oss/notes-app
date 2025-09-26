@@ -9,6 +9,10 @@ function CheckAuthenticationForJWtToken(cookieName) {
 
     }
 
+
+    
+    req.user=payload
+ 
     next();
   };
 }

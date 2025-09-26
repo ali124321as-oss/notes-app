@@ -1,0 +1,28 @@
+Title: JWT Basics
+Note: Learned about JWT authentication today.
+
+Title: Working with Mongoose
+Note: Practiced creating and fetching notes with Mongoose.
+
+Title: Ref vs Populate
+Note: Understood the difference between ref and populate.
+
+Title: User ID Only
+Note: Realized I only need userId if I don’t want populate.
+
+Title: Securing Routes
+Note: Decided to secure update and delete routes for ownership.
+Title: Middleware Setup  
+Note: Implemented JWT authentication middleware in Express.  
+
+Title: Schema Design  
+Note: Designed a note schema with userId to link notes to users.  
+
+Title: Populate Usage  
+Note: Explored how populate can fetch user details with notes.  
+
+Title: Query Optimization  
+Note: Learned that filtering by userId is faster without populate.  
+
+Title: Update & Delete Rules  
+Note: Added checks so only the note owner can update or delete it.  
