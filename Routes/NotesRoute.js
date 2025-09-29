@@ -2,8 +2,10 @@ const notesModel = require("../models/NotesModel");
 const express = require("express");
 const Notesrouter = express.Router();
 const { v4 } = require("uuid");
-
+   const path=require("path")
 const { getNotesOnPagination } = require("./Pagination");
+
+
 Notesrouter.get("/notes/title", async (req, res) => {
   const { title } = req.query;
 
@@ -14,14 +16,13 @@ Notesrouter.get("/notes/title", async (req, res) => {
 
     const notes = await notesModel.find({
       userId: req.user._id, // make sure token user is correct
-      title: { $regex: title.trim(), $options: "i" }, 
+      title: { $regex: title.trim(), $options: "i" },
     });
-        
+
     console.log("dlddldldldldldl");
-    
-       console.log("notes dkfkdkdkdkddk",notes);
-       
-         
+
+    console.log("notes dkfkdkdkdkddk", notes);
+
     if (!notes) {
       return res.send({ msg: "note not found" });
     }
@@ -53,7 +54,12 @@ Notesrouter.get("/notes", async (req, res) => {
       return res.send({ msg: "you have not created any note yet" });
     }
 
-    const GetData = await getNotesOnPagination(page, limit, countUserNotes, req.user._id);
+    const GetData = await getNotesOnPagination(
+      page,
+      limit,
+      countUserNotes,
+      req.user._id
+    );
     return res.send(GetData);
   } catch (err) {
     res.status(400).json({ error: `error :${err.message}` });
@@ -81,8 +87,6 @@ Notesrouter.get("/notes/:id", async (req, res) => {
   }
 });
 
-
-
 //  Create a new note
 Notesrouter.post("/notes", async (req, res) => {
   const { title, note } = req.body;
@@ -101,6 +105,8 @@ Notesrouter.post("/notes", async (req, res) => {
       noteid: uuid,
       title,
       note,
+       
+      
     });
 
     res.send({

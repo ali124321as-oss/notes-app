@@ -21,6 +21,10 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
+     PorfileImageUrl: {
+      type: String,
+      default: "/profile_photo.jpg",
+    }
   },
   { timestamps: true }
 );
