@@ -3,28 +3,75 @@ const express = require("express");
 const Notesrouter = express.Router();
 const { v4 } = require("uuid");
 
-//  Get all notes
-Notesrouter.get("/notes", async (req, res) => {
+const { getNotesOnPagination } = require("./Pagination");
+Notesrouter.get("/notes/title", async (req, res) => {
+  const { title } = req.query;
+
   try {
-    const getAllNotes = await notesModel.find({ userId: req.user._id });
+    if (!title) {
+      return res.send({ msg: "please enter a title to search" });
+    }
+
+    const notes = await notesModel.find({
+      userId: req.user._id, // make sure token user is correct
+      title: { $regex: title.trim(), $options: "i" }, 
+    });
+        
+    console.log("dlddldldldldldl");
+    
+       console.log("notes dkfkdkdkdkddk",notes);
+       
+         
+    if (!notes) {
+      return res.send({ msg: "note not found" });
+    }
+
     return res.send({
-      totalNotes: getAllNotes.length,
-      notes: getAllNotes,
+      totalNotes: notes.length,
+      notes,
     });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
-// get one note 
+
+Notesrouter.get("/notes", async (req, res) => {
+  const { page, limit } = req.query;
+  try {
+    if (!page) {
+      return res.send({ msg: "please enter page number" });
+    }
+    if (!limit) {
+      return res.send({ msg: "please enter limit of page" });
+    }
+
+    const countUserNotes = await notesModel.countDocuments({
+      userId: req.user._id,
+    });
+
+    if (countUserNotes === 0) {
+      return res.send({ msg: "you have not created any note yet" });
+    }
+
+    const GetData = await getNotesOnPagination(page, limit, countUserNotes, req.user._id);
+    return res.send(GetData);
+  } catch (err) {
+    res.status(400).json({ error: `error :${err.message}` });
+  }
+});
+// get one note
 Notesrouter.get("/notes/:id", async (req, res) => {
   try {
-        if (!req.params.id) {
-            return res.send({msg:"please enter you note id"})
-        }
-    const getNote = await notesModel.findOne({ userId: req.user._id,noteid:req.params.id });
-       if (!getNote) {
-           return res.send({msg:"note not found"})
-       }
+    if (!req.params.id) {
+      return res.send({ msg: "please enter you note id" });
+    }
+    const getNote = await notesModel.findOne({
+      userId: req.user._id,
+      noteid: req.params.id,
+    });
+    if (!getNote) {
+      return res.send({ msg: "note not found" });
+    }
     return res.send({
       totalNotes: getNote.length,
       notes: getNote,
@@ -33,6 +80,8 @@ Notesrouter.get("/notes/:id", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+
 
 //  Create a new note
 Notesrouter.post("/notes", async (req, res) => {
@@ -67,9 +116,9 @@ Notesrouter.post("/notes", async (req, res) => {
 // Update note (PUT  full update)
 Notesrouter.put("/notes/:id", async (req, res) => {
   try {
-     if (!req.params.id) {
-            return res.send({msg:"please enter you note id"})
-        }
+    if (!req.params.id) {
+      return res.send({ msg: "please enter you note id" });
+    }
     const { title, note } = req.body;
 
     const updateFields = {};
@@ -94,9 +143,9 @@ Notesrouter.put("/notes/:id", async (req, res) => {
 //  Delete note
 Notesrouter.delete("/notes/:id", async (req, res) => {
   try {
-     if (!req.params.id) {
-            return res.send({msg:"please enter you note id"})
-        }
+    if (!req.params.id) {
+      return res.send({ msg: "please enter you note id" });
+    }
     const deleted = await notesModel.deleteOne({ noteid: req.params.id });
 
     if (deleted.deletedCount === 0) {
@@ -113,9 +162,9 @@ Notesrouter.patch("/notes/:id", async (req, res) => {
   const { note } = req.body;
 
   try {
-     if (!req.params.id) {
-            return res.send({msg:"please enter you note id"})
-        }
+    if (!req.params.id) {
+      return res.send({ msg: "please enter you note id" });
+    }
     const updated = await notesModel.findOneAndUpdate(
       { noteid: req.params.id },
       { $set: { note } },
