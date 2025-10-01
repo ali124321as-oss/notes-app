@@ -2,6 +2,7 @@ console.log(" index js running ");
   const mongoose= require("mongoose")
 const express=require("express")
 const app=express()
+require("dotenv").config()
 const port=9005
 const userRoute=require("./Routes/UserRoutes")
 const NotesRoute=require("./Routes/NotesRoute")

@@ -2,6 +2,8 @@ const { Schema, model } = require("mongoose");
 
 const { createHmac, randomBytes } = require("crypto");
 const { CreateTokenOFUser } = require("../Auth");
+const { type } = require("os");
+  const loginsecret = process.env.loginSecret
 const userSchema = new Schema(
   {
     fullName: {
@@ -28,8 +30,11 @@ const userSchema = new Schema(
      PorfileImageUrl: {
       type: String,
       default: "/profile_photo.jpg",
-    }
+    },
+
+
   },
+
   { timestamps: true }
 );
 
@@ -40,6 +45,8 @@ userSchema.pre("save", function (next) {
      if (this.skipHashing) {
         return next()
      }
+
+     
   const salt = randomBytes(16).toString("hex");
   const hashPassword = createHmac("sha256", salt)
     .update(this.password)
@@ -73,7 +80,7 @@ userSchema.static("matchUserPassword", async function (email, password) {
     throw new Error("user not found");
   }
 
-  const token = CreateTokenOFUser(finduser);
+  const token = CreateTokenOFUser(finduser,loginsecret);
 
   return token;
 });

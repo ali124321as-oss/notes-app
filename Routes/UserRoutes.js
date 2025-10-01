@@ -2,24 +2,42 @@ const express = require("express");
 const router = express.Router();
 const path = require("path");
 const { createHmac } = require("crypto");
-const { CreateTokenOFUser } = require("../Auth");
+const { CreateTokenOFUser, validateTokenOFUser } = require("../Auth");
 const userModel = require("../models/userModel");
 const multer = require("multer");
 const { v4 } = require("uuid");
 const { CheckAuthenticationForJWtToken } = require("../AuthMiddleware");
 const { body, validationResult } = require("express-validator");
 
-
+const userInformation = {};
+const signupSecret = process.env.signupSecret;
+const email_user = process.env.userEmail;
+const email_password = process.env.userPassword;
+const sender_email = process.env.senderEmail;
+const nodemailer = require("nodemailer");
+const transporter = nodemailer.createTransport({
+  host: "in-v3.mailjet.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: email_user,
+    pass: email_password,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+});
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array().map((err)=>{
-          return   err.msg
-    }) });
+    return res.status(400).json({
+      errors: errors.array().map((err) => {
+        return err.msg;
+      }),
+    });
   }
   next();
 };
-
 
 const Storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -32,7 +50,6 @@ const Storage = multer.diskStorage({
 });
 const upload = multer({ storage: Storage });
 
-
 router.get("/auth/signup", (req, res) => {
   res.send("hello form sign up page");
 });
@@ -42,13 +59,16 @@ router.get("/auth/signin", (req, res) => {
   res.send({ msg: message });
 });
 
-
 router.post(
   "/auth/signup",
   upload.single("CoverImage"),
   [
     body("fullName").notEmpty().withMessage("Full name is required"),
-    body("email").notEmpty().withMessage("Email is required"),
+    body("email")
+      .notEmpty()
+      .withMessage("Email is required")
+      .isEmail()
+      .withMessage("Please provide a valid email"),
     body("password").notEmpty().withMessage("Password is required"),
   ],
   validate,
@@ -59,25 +79,74 @@ router.post(
       const profileImageUrl = req.file
         ? `/images/${req.file.filename}`
         : "/profile_photo.jpg";
+                 
+      userInformation[fullName] = fullName;
+      userInformation[email] = email;
+      userInformation[password] = password;
+      userInformation[profileImageUrl] = profileImageUrl;
+      const shortToken = v4().replace(/-/g, "").slice(0, 6);
+      signUpToken = CreateTokenOFUser(shortToken, signupSecret);
 
-      const newUser = await userModel.create({
-        fullName,
-        email,
-        password,
-        PorfileImageUrl: profileImageUrl,
+      const html = `
+      <p>Hello <strong>${fullName}</strong>,</p>
+      <p>Your verification code is:</p>
+      <p style="font-size:18px;font-weight:700">${shortToken}</p>
+      <p>This code will expire in 15 minutes.</p>
+    `;
+
+      const info = await transporter.sendMail({
+        from: sender_email,
+        to: email,
+        subject: "Your verification code",
+        html,
       });
 
-      res.send({
-        id: newUser._id,
-        email: newUser.email,
-        PorfileImageUrl: profileImageUrl,
+      return res.json({
+        message: "Verification code sent to your inbox.",
+        msgId: info.messageId,
+        signUpToken: signupToken,
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      console.error("Error sending email:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to send verification email" });
     }
   }
 );
 
+router.post(
+  "/auth/token",
+  [body("shortToken").notEmpty().withMessage("please enter your short token")],
+  async (req, res) => {
+    const { shortToken } = req.body;
+    const verifyToken = validateTokenOFUser(shortToken, signupSecret);
+
+    if (!verifyToken) {
+      return res.send({
+        msg: "please enter correct short token",
+      });
+    }
+
+    const createUser = await userModel.create({
+      fullName: userInformation.fullName,
+      email: userInformation.email,
+      password: userInformation.password,
+      PorfileImageUrl: userInformation.profileImageUrl,
+    });
+
+    if (!createUser) {
+      return res.send({
+        msg: "you account can not be created",
+      });
+    }
+
+    return res.send({
+      msg: "your account create successfully",
+      yourName: createUser.fullName,
+    });
+  }
+);
 
 router.post(
   "/auth/signin",
@@ -91,7 +160,8 @@ router.post(
 
     try {
       const token = await userModel.matchUserPassword(email, password);
-      res.cookie("userToken", token);
+      res.cookie("userToken", token, { httpOnly: true, maxAge: 3 * 60 * 1000 });
+
       return res.send({ token });
     } catch (error) {
       return res.send({ msg: "user not found" });
@@ -186,7 +256,6 @@ router.patch(
   }
 );
 
-
 router.post(
   "/auth/forgetpassword",
   [body("email").notEmpty().withMessage("Email is required")],
@@ -215,7 +284,6 @@ router.post(
     }
   }
 );
-
 
 router.patch(
   "/auth/changePassword",
