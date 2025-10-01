@@ -5,17 +5,14 @@ function CheckAuthenticationForJWtToken(cookieName) {
     const token = req.cookies[cookieName];
     const payload = validateTokenOFUser(token);
     if (!payload) {
-    return res.redirect("/api/auth/signin?msg=You are not logged in");
-
+      return res.redirect("/api/auth/signin?msg=You are not logged in");
     }
-
-
-    
-    req.user=payload
- 
+          
+    req.user = payload;
+   console.log("req.user in auth middle ware",req.user);
+   
     next();
   };
 }
 
-
-module.exports={CheckAuthenticationForJWtToken}
+module.exports = { CheckAuthenticationForJWtToken };

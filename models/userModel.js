@@ -21,6 +21,10 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
+    resetHash:{
+    type:String,
+      unique:true
+    },
      PorfileImageUrl: {
       type: String,
       default: "/profile_photo.jpg",
@@ -33,7 +37,9 @@ userSchema.pre("save", function (next) {
   if (!this.isModified) {
     return next();
   }
-
+     if (this.skipHashing) {
+        return next()
+     }
   const salt = randomBytes(16).toString("hex");
   const hashPassword = createHmac("sha256", salt)
     .update(this.password)
