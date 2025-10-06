@@ -7,48 +7,35 @@ const userModel = require("../models/userModel");
 const multer = require("multer");
 const { v4 } = require("uuid");
 const { CheckAuthenticationForJWtToken } = require("../AuthMiddleware");
-const { body, validationResult } = require("express-validator");
-
+const {
+  textValidator,
+  emailValidator,
+  passwordValidator,
+  fileValidator,
+  validationMiddleware,
+} = require("../expressValidator/allValidatons");
+const { createStorage } = require("../uploadimagehandler");
 const userInformation = {};
 const signupSecret = process.env.signupSecret;
 const email_user = process.env.userEmail;
 const email_password = process.env.userPassword;
 const sender_email = process.env.senderEmail;
 const nodemailer = require("nodemailer");
+
 const transporter = nodemailer.createTransport({
   host: "in-v3.mailjet.com",
   port: 587,
   secure: false,
   auth: {
-    user: email_user,
-    pass: email_password,
+    user: "494d88322c2bb74b44b597615b6f05cc",
+    pass: "ddba87939f4d507ec143ccc7524f4119",
   },
   tls: {
     rejectUnauthorized: false,
   },
 });
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      errors: errors.array().map((err) => {
-        return err.msg;
-      }),
-    });
-  }
-  next();
-};
 
-const Storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.resolve("./public/images"));
-  },
-  filename: function (req, file, cb) {
-    const fileName = `${Date.now()}-${file.originalname}`;
-    cb(null, fileName);
-  },
-});
-const upload = multer({ storage: Storage });
+const upload = multer({ storage: createStorage("images") });
 
 router.get("/auth/signup", (req, res) => {
   res.send("hello form sign up page");
@@ -59,109 +46,57 @@ router.get("/auth/signin", (req, res) => {
   res.send({ msg: message });
 });
 
+// ----- Signup -----
 router.post(
   "/auth/signup",
   upload.single("CoverImage"),
   [
-    body("fullName").notEmpty().withMessage("Full name is required"),
-    body("email")
-      .notEmpty()
-      .withMessage("Email is required")
-      .isEmail()
-      .withMessage("Please provide a valid email"),
-    body("password").notEmpty().withMessage("Password is required"),
+    textValidator("fullName"),
+    emailValidator("email"),
+    passwordValidator("password"),
+    fileValidator("CoverImage"),
   ],
-  validate,
+  validationMiddleware,
   async (req, res) => {
-    const { fullName, email, password } = req.body;
-
     try {
+      const { fullName, email, password } = req.body;
       const profileImageUrl = req.file
         ? `/images/${req.file.filename}`
         : "/profile_photo.jpg";
-                 
-      userInformation[fullName] = fullName;
-      userInformation[email] = email;
-      userInformation[password] = password;
-      userInformation[profileImageUrl] = profileImageUrl;
-      const shortToken = v4().replace(/-/g, "").slice(0, 6);
-      signUpToken = CreateTokenOFUser(shortToken, signupSecret);
 
-      const html = `
-      <p>Hello <strong>${fullName}</strong>,</p>
-      <p>Your verification code is:</p>
-      <p style="font-size:18px;font-weight:700">${shortToken}</p>
-      <p>This code will expire in 15 minutes.</p>
-    `;
-
-      const info = await transporter.sendMail({
-        from: sender_email,
-        to: email,
-        subject: "Your verification code",
-        html,
+      const createuser = await userModel.create({
+        fullName,
+        email,
+        password,
+        PorfileImageUrl: profileImageUrl,
       });
 
-      return res.json({
-        message: "Verification code sent to your inbox.",
-        msgId: info.messageId,
-        signUpToken: signupToken,
+      if (!createuser) {
+        return res.status(400).send({ msg: "you can not create account " });
+      }
+
+      return res.send({
+        msg: "you accont has been created successfully ",
+        yourName: `${createuser.fullName}`,
       });
-    } catch (err) {
-      console.error("Error sending email:", err);
-      return res
-        .status(500)
-        .json({ message: "Failed to send verification email" });
+    } catch (error) {
+         console.log("error in signup routes",error);
+         
+      return res.send({ msg: "some thing went wrong " });
     }
   }
 );
 
-router.post(
-  "/auth/token",
-  [body("shortToken").notEmpty().withMessage("please enter your short token")],
-  async (req, res) => {
-    const { shortToken } = req.body;
-    const verifyToken = validateTokenOFUser(shortToken, signupSecret);
-
-    if (!verifyToken) {
-      return res.send({
-        msg: "please enter correct short token",
-      });
-    }
-
-    const createUser = await userModel.create({
-      fullName: userInformation.fullName,
-      email: userInformation.email,
-      password: userInformation.password,
-      PorfileImageUrl: userInformation.profileImageUrl,
-    });
-
-    if (!createUser) {
-      return res.send({
-        msg: "you account can not be created",
-      });
-    }
-
-    return res.send({
-      msg: "your account create successfully",
-      yourName: createUser.fullName,
-    });
-  }
-);
-
+// ----- Signin -----
 router.post(
   "/auth/signin",
-  [
-    body("email").notEmpty().withMessage("Email is required"),
-    body("password").notEmpty().withMessage("Password is required"),
-  ],
-  validate,
+  [emailValidator("email"), passwordValidator("password")],
+  validationMiddleware,
   async (req, res) => {
     const { email, password } = req.body;
-
     try {
       const token = await userModel.matchUserPassword(email, password);
-      res.cookie("userToken", token, { httpOnly: true, maxAge: 3 * 60 * 1000 });
-
+      res.cookie("userToken", token, { httpOnly: true, maxAge: 15 * 60 * 1000 });
       return res.send({ token });
     } catch (error) {
       return res.send({ msg: "user not found" });
@@ -173,11 +108,8 @@ router.post(
 router.patch(
   "/auth/updatePassword",
   CheckAuthenticationForJWtToken("userToken"),
-  [
-    body("oldPassword").notEmpty().withMessage("Old password is required"),
-    body("newPassword").notEmpty().withMessage("New password is required"),
-  ],
-  validate,
+  [passwordValidator("oldPassword"), passwordValidator("newPassword")],
+  validationMiddleware,
   async (req, res) => {
     try {
       const { oldPassword, newPassword } = req.body;
@@ -217,11 +149,8 @@ router.patch(
 router.patch(
   "/auth/email",
   CheckAuthenticationForJWtToken("userToken"),
-  [
-    body("password").notEmpty().withMessage("Password is required"),
-    body("newEmail").notEmpty().withMessage("New email is required"),
-  ],
-  validate,
+  [passwordValidator("password"), emailValidator("newEmail")],
+  validationMiddleware,
   async (req, res) => {
     const { password, newEmail } = req.body;
     try {
@@ -256,10 +185,11 @@ router.patch(
   }
 );
 
+// ----- Forget Password -----
 router.post(
   "/auth/forgetpassword",
-  [body("email").notEmpty().withMessage("Email is required")],
-  validate,
+  [emailValidator("email")],
+  validationMiddleware,
   async (req, res) => {
     try {
       const shortToken = v4().replace(/-/g, "").slice(0, 6);
@@ -285,13 +215,11 @@ router.post(
   }
 );
 
+// ----- Change Password -----
 router.patch(
   "/auth/changePassword",
-  [
-    body("shortToken").notEmpty().withMessage("Short token is required"),
-    body("newPassword").notEmpty().withMessage("New password is required"),
-  ],
-  validate,
+  [textValidator("shortToken"), passwordValidator("newPassword")],
+  validationMiddleware,
   async (req, res) => {
     try {
       const { shortToken, newPassword } = req.body;
@@ -314,5 +242,96 @@ router.patch(
     }
   }
 );
+
+// router.post(
+
+//   "/auth/signup",
+//   upload.single("CoverImage"),
+//   [
+//     textValidator("fullName"),
+//     emailValidator("email"),
+//     passwordValidator("password"),
+//     fileValidator("CoverImage"),
+//   ],
+//   validationMiddleware(),
+//   async (req, res) => {
+//     const { fullName, email, password } = req.body;
+
+//     try {
+//       const profileImageUrl = req.file
+//         ? `/images/${req.file.filename}`
+//         : "/profile_photo.jpg";
+
+//       userInformation[fullName] = fullName;
+//       userInformation[email] = email;
+//       userInformation[password] = password;
+//       userInformation[profileImageUrl] = profileImageUrl;
+//       const shortToken = v4().replace(/-/g, "").slice(0, 6);
+//       const signUpToken = CreateTokenOFUser(shortToken, signupSecret);
+//       console.log("all secret keys", signupSecret);
+//       console.log(sender_email);
+//       console.log("email password", email_password);
+
+//       const html = `
+//       <p>Hello <strong>${fullName}</strong>,</p>
+//       <p>Your verification code is:</p>
+//       <p style="font-size:18px;font-weight:700">${shortToken}</p>
+//       <p>This code will expire in 15 minutes.</p>
+//     `;
+
+//       const info = await transporter.sendMail({
+//         from: "haiderzamanyzi@gmail.com",
+//         to: email,
+//         subject: "Your verification code",
+//         html,
+//       });
+
+//       return res.json({
+//         message: "Verification code sent to your inbox.",
+//         msgId: info.messageId,
+//         signUpToken: signUpToken,
+//       });
+//     } catch (err) {
+//       console.error("Error sending email:", err);
+//       return res
+//         .status(500)
+//         .json({ message: "Failed to send verification email" });
+//     }
+//   }
+// );
+
+// router.post(
+
+//   "/auth/token",
+//   [textValidator("shortToken")],
+//   async (req, res) => {
+//     const { shortToken } = req.body;
+//     const verifyToken = validateTokenOFUser(shortToken, signupSecret);
+
+//     if (!verifyToken) {
+//       return res.send({
+//         msg: "please enter correct short token",
+//       });
+//     }
+
+//     const createUser = await userModel.create({
+//       fullName: userInformation.fullName,
+//       email: userInformation.email,
+//       password: userInformation.password,
+//       PorfileImageUrl: userInformation.profileImageUrl,
+//     });
+
+//     if (!createUser) {
+//       return res.send({
+//         msg: "you account can not be created",
+//       });
+//     }
+
+//     return res.send({
+//       msg: "your account create successfully",
+//       yourName: createUser.fullName,
+//     });
+//   }
+// );
 
 module.exports = router;

@@ -23,10 +23,6 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    resetHash:{
-    type:String,
-      unique:true
-    },
      PorfileImageUrl: {
       type: String,
       default: "/profile_photo.jpg",

@@ -13,7 +13,7 @@ function CreateTokenOFUser(user,secret) {
   return token;
 }
 
-function validateTokenOFUser(token) {
+function validateTokenOFUser(token,secret) {
   try {
     const payload = jwt.verify(token, secret);
     return payload;
